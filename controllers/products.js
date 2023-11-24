@@ -1,15 +1,14 @@
 const Products = require("../models/product");
 const getAllProductsStatic = async (req, res) => {
-  const products = await Products.find({})
-    .sort("name")
-    .select("name price")
-    .limit(10)
-    .skip(2);
+  const products = await Products.find({ price: { $gt: 30 } })
+    .sort("price")
+    .select("name price");
+
   res.status(200).json({ products, nbHits: products.length });
 };
 
 const getAllProducts = async (req, res) => {
-  const { featured, company, name, sort, fields } = req.query;
+  const { featured, company, name, sort, fields, numericFilters } = req.query;
   const queryObject = {};
 
   if (featured) {
@@ -21,6 +20,31 @@ const getAllProducts = async (req, res) => {
   if (name) {
     //The $regex operator in MongoDB is used for pattern matching within queries.
     queryObject.name = { $regex: name };
+  }
+
+  if (numericFilters) {
+    const operatorMap = {
+      ">": "$gt",
+      ">=": "$gte",
+      "=": "$eq",
+      "<": "$lt",
+      "<=": "$lte",
+    };
+
+    const regEx = /\b(<|>|>=|=|<|<=)\b/g;
+    let filters = numericFilters.replace(
+      regEx,
+      (match) => `-${operatorMap[match]}-`
+    );
+
+    const options = ["price", "rating"];
+
+    filters = filters.split(",").forEach((item) => {
+      const [field, operator, value] = item.split("-");
+      if (options.includes(field)) {
+        queryObject[field] = { [operator]: Number(value) };
+      }
+    });
   }
 
   console.log(queryObject);
